@@ -1,0 +1,171 @@
+# config.py
+"""
+Configuration for Gore Scanner — severity scale 0.1–1.0, sources, database.
+Weights tuned for graphic content: fatal accidents, blood, trauma, bodies.
+"""
+
+import os
+
+# --- API & limits ---
+API_KEY = "83438e227a8b4b3ebcd10a51a9a2159f"
+LIVE_REFRESH_INTERVAL = 120
+MAX_LIVE_ARTICLES = 300
+MAX_SEARCH_RESULTS = 50  # per source (images, videos, news)
+DB_FILENAME = "gore_scanner.db"
+
+# --- Severity scale: 0.1 (mild) to 1.0 (extreme) ---
+SEVERITY_MIN = 0.1
+SEVERITY_MAX = 1.0
+
+# Keyword → weight (0.0–1.0). Tuned for: fatal accidents, blood pools, head trauma, bodies, gore.
+# Stronger terms get higher weight; multiple matches add (capped at 1.0).
+KEYWORD_WEIGHTS = {
+    # Explicit gore / graphic
+    "gore": 0.95,
+    "graphic violence": 0.92,
+    "mutilated": 0.92,
+    "severed": 0.92,
+    "dismembered": 0.92,
+    "dismemberment": 0.90,
+    "decapitated": 0.90,
+    "head trauma": 0.88,
+    "brain": 0.55,  # often with trauma context
+    "skull": 0.60,
+    "brutal": 0.78,
+    "gruesome": 0.80,
+    "blood": 0.72,
+    "bloody": 0.75,
+    "bleeding": 0.74,
+    "blood pool": 0.88,
+    "pool of blood": 0.88,
+    "arterial": 0.70,
+    "wounded": 0.65,
+    "mutilation": 0.90,
+    # Fatalities / bodies
+    "fatal": 0.82,
+    "fatality": 0.80,
+    "fatalities": 0.82,
+    "deceased": 0.78,
+    "dead body": 0.85,
+    "bodies": 0.80,
+    "corpse": 0.82,
+    "victim": 0.55,
+    "casualty": 0.68,
+    "death": 0.58,
+    "killed": 0.72,
+    "murder": 0.78,
+    "murdered": 0.78,
+    # Violence
+    "stabbing": 0.76,
+    "shooting": 0.65,
+    "violent": 0.55,
+    "disturbing": 0.58,
+    "trauma": 0.70,
+    "injury": 0.45,
+    "injuries": 0.50,
+    "severe injury": 0.75,
+    # Accidents / scenes (often graphic)
+    "accident": 0.50,
+    "fatal accident": 0.85,
+    "motorcycle accident": 0.75,
+    "car accident": 0.55,
+    "crash": 0.50,
+    "road accident": 0.70,
+    "overturned": 0.45,
+    "bystander": 0.35,
+}
+
+# Only suppress keyword when context clearly indicates non-gore (e.g. blood donation)
+FALSE_POSITIVE_EXCLUSIONS = {
+    "blood": ["donation", "drive", "bank", "test", "pressure", "moon", "sugar", "orange"],
+    "shooting": ["basketball", "film", "movie", "photo", "star", "range", "game", "starring"],
+    "disturbing": ["dream", "sleep"],
+    "death": ["metal", "penalty", "tax", "death metal"],
+    "accident": ["accidentally", "by accident"],
+    "bodies": ["student body", "governing body", "body of water", "body of text"],
+}
+
+# If ANY of these appear in text, treat as movie/fake/fiction — apply penalty to final score (reduce severity).
+FICTION_FAKE_INDICATORS = [
+    "movie", "film", "hollywood", "trailer", "clip from", "scene from", "fake gore",
+    "simulation", "video game", "gameplay", "cgi", "special effects", "sfx",
+    "horror movie", "slasher film", "fiction", "fictional", "drama series",
+    "tv show", "netflix", "series episode", "acted", "actor", "actress",
+    "comedy", "parody", "satire", "meme", "edit", "compilation",
+]
+
+# Keywords that suggest REAL / documentary / actual footage — add bonus to score (prioritize real gruesome).
+REAL_CONTENT_WEIGHTS = {
+    "real footage": 0.25,
+    "actual footage": 0.28,
+    "real gore": 0.30,
+    "actual death": 0.28,
+    "caught on camera": 0.22,
+    "cctv": 0.20,
+    "security camera": 0.20,
+    "leaked": 0.18,
+    "uncensored": 0.20,
+    "documentary": 0.12,
+    "crime scene": 0.22,
+    "crime scene photo": 0.25,
+    "crime scene footage": 0.26,
+    "real accident": 0.22,
+    "fatal accident footage": 0.26,
+    "death footage": 0.24,
+    "graphic footage": 0.22,
+    "nsfw": 0.10,
+    "nsfl": 0.22,
+    "watch people die": 0.20,
+    "liveleak": 0.18,
+    "bestgore": 0.18,
+    "documenting reality": 0.18,
+}
+
+# Color gradient: severity 0.1 → green-ish, 0.5 → orange, 1.0 → dark red
+SEVERITY_COLOR_ANCHORS = [
+    (0.1, "#2E7D32"),
+    (0.3, "#F9A825"),
+    (0.5, "#EF6C00"),
+    (0.7, "#D32F2F"),
+    (1.0, "#6D1B1B"),
+]
+
+# --- News presets (exclude movie/film/fake to favor real incidents) ---
+GORE_PRESETS = {
+    "Extreme Gore": "gore OR \"graphic violence\" -movie -film -fake -fiction",
+    "Blood & Injury": "(blood OR bleeding OR wounded) -donation -drive -bank -movie -film -fiction",
+    "Brutal Attacks": "brutal OR mutilated OR severed -movie -film -fake",
+    "Gruesome Content": "gruesome OR disturbing -movie -film -art -fiction -trailer",
+    "Violent Crime": "(shooting OR stabbing OR murder) -basketball -film -movie -photo -star -range -game",
+    "Fatal Accidents": "fatal accident OR \"dead body\" OR fatality -movie -film",
+    "Real Gore (no film)": "gore OR \"graphic violence\" OR fatality -movie -film -fake -fiction -trailer -game",
+    "All Gore Content": "gore OR graphic OR (blood -donation -drive) OR brutal OR gruesome OR severed -movie -film -fake",
+}
+
+# --- Media search presets: favor real gruesome, exclude fake/movie ---
+MEDIA_SEARCH_PRESETS = {
+    "Real gore footage": ("real gore footage -movie -film -fake", "videos"),
+    "Actual death footage": ("actual death footage -movie -fake", "videos"),
+    "Graphic accident footage": ("graphic accident footage real -movie -film", "videos"),
+    "Real gruesome images": ("real gore images -movie -film -fake", "images"),
+    "Crime scene footage": ("crime scene footage -movie -film", "videos"),
+    "Disturbing real footage": ("disturbing real footage -movie -fake", "videos"),
+    "Real gruesome (WPD-style)": ("site:watchpeopledie.tv gore", "text"),
+    "Real graphic (WPD-style)": ("site:watchpeopledie.tv", "text"),
+}
+
+# --- Image: combined red + dark-red (blood) pixel % → 1.0 at this threshold. Lower = more sensitive.
+IMAGE_RED_PERCENT_TO_SEVERITY = 18.0
+
+# AI Verifier: severity >= this → "Gore: Yes"
+GORE_VERIFY_THRESHOLD = 0.5
+
+# Auto-log: items with severity >= this are automatically appended to the daily log file (gore_logs/gore_auto_YYYYMMDD.csv)
+AUTO_LOG_SEVERITY_MIN = 0.5
+
+SOURCES_DEFAULT = {
+    "news_api": True,
+    "duckduckgo_images": True,
+    "duckduckgo_videos": True,
+    "duckduckgo_text": True,
+}
