@@ -7,7 +7,7 @@ Weights tuned for graphic content: fatal accidents, blood, trauma, bodies.
 import os
 
 # --- API & limits ---
-API_KEY = "83438e227a8b4b3ebcd10a51a9a2159f"
+API_KEY = "YOUR_API_HERE"
 LIVE_REFRESH_INTERVAL = 120
 MAX_LIVE_ARTICLES = 300
 MAX_SEARCH_RESULTS = 50  # per source (images, videos, news)
