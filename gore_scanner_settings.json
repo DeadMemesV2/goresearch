@@ -1,0 +1,9 @@
+{
+  "api_key": "83438e227a8b4b3ebcd10a51a9a2159f",
+  "sources": {
+    "news_api": true,
+    "duckduckgo_images": true,
+    "duckduckgo_videos": true,
+    "duckduckgo_text": true
+  }
+}
